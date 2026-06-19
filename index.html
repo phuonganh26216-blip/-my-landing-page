@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Game – Khám phá Dataset HR</title>
+    <style>
+        /* [KHU VỰC TÙY CHỈNH MÀU SẮC] */
+        :root {
+            --primary: #2563eb;
+            --secondary: #0891b2;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --white: #ffffff;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { background: var(--white); width: 90%; max-width: 700px; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+        
+        button { cursor: pointer; padding: 0.8rem 1.5rem; border: none; border-radius: 0.5rem; background: var(--primary); color: white; font-weight: bold; transition: 0.3s; }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+        
+        .hidden { display: none; }
+        .options-grid { display: grid; gap: 1rem; margin-top: 1.5rem; }
+        .option-btn { background: #f1f5f9; color: var(--text); padding: 1rem; border-radius: 0.5rem; text-align: left; border: 2px solid transparent; }
+        .option-btn:hover { background: #e2e8f0; }
+        .option-btn.selected { border-color: var(--primary); background: #dbeafe; }
+
+        .progress-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin: 1rem 0; overflow: hidden; }
+        #progress-fill { height: 100%; background: var(--primary); width: 0%; transition: 0.3s; }
+    </style>
+</head>
+<body>
+
+    <div id="game-app" class="container">
+        <!-- Màn hình 1: Bắt đầu -->
+        <div id="screen-start">
+            <h1>HR Analytics Quiz</h1>
+            <p>Khám phá logic Dataset HR cùng chuyên gia.</p>
+            <input type="text" id="user-name" placeholder="Nhập họ và tên..." style="padding: 0.8rem; width: 80%; border: 1px solid #ccc; border-radius: 0.5rem; margin-bottom: 1rem;">
+            <br>
+            <button onclick="game.start()">Bắt đầu trò chơi</button>
+        </div>
+
+        <!-- Màn hình 2: Chơi -->
+        <div id="screen-quiz" class="hidden">
+            <div style="display: flex; justify-content: space-between;">
+                <span id="display-name"></span>
+                <span id="timer">00:00</span>
+            </div>
+            <div class="progress-bar"><div id="progress-fill"></div></div>
+            <h3 id="question-text">Câu hỏi...</h3>
+            <div id="options-container" class="options-grid"></div>
+            <div style="margin-top: 2rem;">
+                <button onclick="game.prev()">Trước</button>
+                <button onclick="game.next()">Sau</button>
+                <button onclick="game.submit()" style="background: var(--success);">Nộp bài</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* [DỮ LIỆU CÂU HỎI] */
+        const questions = [
+            { q: "Dataset mẫu dùng cho bài tập có quy mô như thế nào?", a: ["30 dòng, 22 cột", "22 dòng, 30 cột", "300 dòng, 22 cột", "30 dòng, 12 cột"], correct: 0, exp: "Dataset mẫu: 30 dòng, 22 cột" },
+            { q: "Trong dataset này, giả định đúng về “mỗi dòng dữ liệu” là gì?", a: ["Mỗi dòng = 1 phòng ban", "Mỗi dòng = 1 nhân sự", "Mỗi dòng = 1 ứng viên tuyển dụng", "Mỗi dòng = 1 kỳ khảo sát engagement"], correct: 1, exp: "Mỗi dòng đại diện 1 nhân sự" },
+            { q: "Cột nào thuộc nhóm “Hồ sơ nhân sự” và có kiểu dữ liệu Text?", a: ["HireDate", "EmployeeID", "BaseSalary", "JobLevel"], correct: 1, exp: "EmployeeID thuộc Hồ sơ nhân sự, kiểu Text" },
+            { q: "Nhóm “Thời gian” trong dataset thường có kiểu dữ liệu gì?", a: ["Text", "Number", "Date", "Text / Number"], correct: 2, exp: "HireDate/TerminationDate thuộc Date" },
+            { q: "Cột JobTitle và JobLevel thuộc nhóm nào và kiểu dữ liệu đúng nhất là gì?", a: ["Hồ sơ nhân sự – Text", "Công việc – Text / Number", "Lương thưởng – Number", "Hiệu suất – Number"], correct: 1, exp: "JobTitle/JobLevel thuộc Công việc; JobLevel có thể số → Text/Number" },
+            { q: "Cột EmploymentStatus và VoluntaryFlag thuộc nhóm nào và thường là kiểu dữ liệu gì?", a: ["Trạng thái – Text", "Thời gian – Date", "Phản hồi – Text", "Engagement – Number"], correct: 0, exp: "EmploymentStatus/VoluntaryFlag thuộc Trạng thái, thường là Text" },
+            { q: "Dữ liệu “EngagementScore_Q32025” và “FeedbackComment_Q32025” thường lấy từ hệ thống nào?", a: ["Payroll / C&B", "Performance System", "Engagement Survey", "ATS (Recruitment)"], correct: 2, exp: "Engagement Score & Feedback lấy từ Engagement Survey (Q3.2025)" },
+            { q: "Vì sao EngagementScore_Q32025 có 12 giá trị NULL?", a: ["Lỗi import", "Nghỉ việc/Mới vào/Không tham gia khảo sát", "Bắt buộc NULL", "Hệ thống HRIS không lưu"], correct: 1, exp: "NULL do nghỉ việc, mới vào sau khảo sát, hoặc không tham gia survey" },
+            { q: "NULL ở TerminationDate có phải lỗi dữ liệu không?", a: ["Có", "Không, đang làm/chưa nghỉ", "Có, phải nhỏ hơn HireDate", "Không, cho thực tập sinh"], correct: 1, exp: "TerminationDate NULL không lỗi: đang làm/ chưa ghi nhận ngày nghỉ" },
+            { q: "Trường hợp nào là “dữ liệu sai” theo quy tắc về TerminationDate?", a: ["Đang làm → NULL", "Đã nghỉ → Có ngày", "Đang làm → Có ngày nghỉ", "Mới vào → NULL"], correct: 2, exp: "Nếu đang làm mà có TerminationDate → dữ liệu sai" }
+        ];
+
+        /* [WEB AUDIO API - ÂM THANH ĐƠN GIẢN] */
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+
+        /* [GAME LOGIC] */
+        const game = {
+            name: "", currentIdx: 0, answers: new Array(10).fill(null), startTime: 0,
+            start() {
+                const name = document.getElementById('user-name').value;
+                if(!name) { alert("Vui lòng nhập tên!"); return; }
+                this.name = name; this.startTime = Date.now();
+                document.getElementById('screen-start').classList.add('hidden');
+                document.getElementById('screen-quiz').classList.remove('hidden');
+                this.render();
+            },
+            render() {
+                const q = questions[this.currentIdx];
+                document.getElementById('question-text').innerText = `${this.currentIdx+1}. ${q.q}`;
+                document.getElementById('progress-fill').style.width = ((this.currentIdx+1)/10)*100 + "%";
+                const cont = document.getElementById('options-container');
+                cont.innerHTML = "";
+                q.a.forEach((opt, i) => {
+                    const btn = document.createElement('div');
+                    btn.className = `option-btn ${this.answers[this.currentIdx] === i ? 'selected' : ''}`;
+                    btn.innerText = opt;
+                    btn.onclick = () => { this.answers[this.currentIdx] = i; playTone(440, 'sine', 0.2); this.render(); };
+                    cont.appendChild(btn);
+                });
+            },
+            next() { if(this.currentIdx < 9) { this.currentIdx++; this.render(); } },
+            prev() { if(this.currentIdx > 0) { this.currentIdx--; this.render(); } },
+            submit() {
+                if(this.answers.includes(null) && !confirm("Còn câu chưa trả lời, bạn chắc chắn muốn nộp?")) return;
+                let score = 0;
+                this.answers.forEach((a, i) => { if(a === questions[i].correct) score++; });
+                const time = Math.floor((Date.now() - this.startTime) / 1000);
+                const res = { name: this.name, score, time, date: new Date().toLocaleString() };
+                
+                // Lưu vào LocalStorage
+                const history = JSON.parse(localStorage.getItem('hr_quiz_data') || '[]');
+                history.push(res);
+                localStorage.setItem('hr_quiz_data', JSON.stringify(history));
+                
+                alert(`Chúc mừng ${this.name}! Bạn đạt ${score}/10 điểm trong ${time} giây.`);
+                location.reload();
+            }
+        };
+    </script>
+</body>
+</html>
